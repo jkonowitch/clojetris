@@ -47,4 +47,10 @@ a:hover {
   border: 1px solid grey;
 }
 
-.cell.I { background-color: red; }
+.cell.I { background-color: aqua; }
+.cell.O { background-color: yellow; }
+.cell.T { background-color: pink; }
+.cell.S { background-color: green; }
+.cell.Z { background-color: red; }
+.cell.J { background-color: blue; }
+.cell.L { background-color: orange; }
