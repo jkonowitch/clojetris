@@ -1,8 +1,9 @@
 (ns tetris.core
     (:use-macros [cljs.core.async.macros :only [go-loop]])
     (:require
+      [clojure.browser.event :as events]
       [reagent.core :as r]
-      [cljs.core.async :refer [<! timeout]]))
+      [cljs.core.async :refer [<! timeout chan put!]]))
 
 
 ;; ------------------------
@@ -94,3 +95,19 @@
        (swap! game-state assoc :active-piece (rand-nth pieces))
        (reset! game-state next-state)))
    (recur))
+
+(def user-input-chan (chan))
+
+(def command-map {38 "UP"
+                  40 "DOWN"
+                  37 "LEFT"
+                  39 "RIGHT"})
+(go-loop []
+  (let [command (->>
+                  (<! user-input-chan)
+                  (.-keyCode)
+                  (get command-map))]
+    (when command (println command)))
+  (recur))
+
+(events/listen (.querySelector js/document "body") "keydown" #(put! user-input-chan %))
