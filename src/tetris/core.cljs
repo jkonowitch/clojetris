@@ -66,11 +66,14 @@
              {:name "J", :segments [[1 1] [0 0] [1 0] [1 2]]}
              {:name "L", :segments [[1 1] [0 2] [1 0] [1 2]]}])
 
-(def game-state (r/atom {:board (->> (repeat 10 nil)
-                                    (vec)
-                                    (repeat 20)
-                                    (vec))
-                         :active-piece (nth pieces 3)}))
+(def starting-piece (rand-nth pieces))
+(def blank-board (->> (repeat 10 nil)
+                      (vec)
+                      (repeat 20)
+                      (vec)))
+
+(def game-state (r/atom {:board (next-board blank-board starting-piece)
+                         :active-piece starting-piece}))
 
 ;; ------------------------
 ;; Initialize app
