@@ -79,7 +79,6 @@
 ;; ------------------------
 ;; Game State
 
-
 (def pieces [{:name "I", :segments [[0 0] [0 1] [0 2] [0 3]]}
              {:name "O", :segments [[0 0] [0 1] [1 0] [1 1]]}
              {:name "T", :segments [[0 1] [0 0] [0 2] [1 1]]}
@@ -116,19 +115,24 @@
        (reset! game-state next-state)))
    (recur))
 
-; CAN I USE A TRANSDUCER?!?!?!
-(def user-input-chan (chan))
+;; ------------------------
+;; User Input Loop
 
-(def command-map {38 "UP"
+(def command-map {;38 "UP"
                   40 down
                   37 left
                   39 right})
+
+(def my-transducer
+  (comp (map #(.-keyCode %))
+        (map #(get command-map %))
+        (filter some?)))
+
+(def user-input-chan (chan 1 my-transducer))
+
 (go-loop []
-  (let [command (->>
-                  (<! user-input-chan)
-                  (.-keyCode)
-                  (get command-map))]
-    (when command (reset! game-state (command @game-state))))
+  (let [command (<! user-input-chan)]
+    (reset! game-state (command @game-state)))
   (recur))
 
 (events/listen (.querySelector js/document "body") "keydown" #(put! user-input-chan %))
