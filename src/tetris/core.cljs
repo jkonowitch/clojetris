@@ -17,36 +17,22 @@
 ;         translated (map (partial translate-to-origin center) (rest piece))]
 ;     (cons center translated)))
 
-; (defn down [{board :board piece :piece :as state}]
-;   (let [next-piece (update piece :segments #(map (fn [e] (update e 0 inc)) %))
-;         intermediate-board (multi-assoc-in board (:segments piece) nil)
-;         next-segments (:segments next-piece)]
-;     (if (and (every? in-bounds? next-segments) (no-conflicts? intermediate-board next-segments))
-;       {:board (next-board intermediate-board next-piece) :piece next-piece}
-;       state)))
-
-
-(defn multi-assoc-in [board keys val]
-  (loop [board board
-         keys keys]
-    (if (empty? keys)
-      board
-      (recur (assoc-in board (first keys) val) (rest keys))))) ;use destructuring to simplify?
-
-
 (defn in-bounds? [[y x]]
   (and (<= 0 x 9) (<= 0 y 19)))
 
 (defn no-conflicts? [board proposed-segments]
   (every? nil? (map #(get-in board %) proposed-segments)))
 
-; (defn dissoc-piece [board {segments :segments}] (multi-assoc-in board segments nil))
-; (defn assoc-piece [board piece] (multi-assoc-in board (:segments piece) (:name piece)))
+(defn piece->board [{val :name keys :segments} board]
+  (reduce #(assoc-in %1 %2 val) board keys))
 
-(defn maybe-next-board [{prev-board :board prev-piece :piece} {next-segments :segments :as next-piece}]
-  (let [clean-board (multi-assoc-in prev-board (:segments prev-piece) nil)]
-    (when (and (every? in-bounds? next-segments) (no-conflicts? clean-board next-segments))
-      (multi-assoc-in clean-board (:segments next-piece) (:name next-piece)))))
+(defn maybe-next-board [{prev-board :board prev-piece :piece}
+                        {next-segments :segments :as next-piece}]
+  (let [nil-piece (assoc prev-piece :name nil)
+        clean-board (piece->board nil-piece prev-board)]
+    (when (and (every? in-bounds? next-segments)
+               (no-conflicts? clean-board next-segments))
+      (piece->board next-piece clean-board))))
 
 (defn next-state [transform {board :board piece :piece :as state}]
   (let [next-piece (update piece :segments #(map transform %))]
@@ -61,6 +47,8 @@
 (def right (partial next-state #(update % 1 inc)))
 
 (def left (partial next-state #(update % 1 dec)))
+
+; (keep-indexed #(if (not-any? nil? %2) %1) board)
 
 ;; -------------------------
 ;; Views
@@ -123,12 +111,12 @@
                   37 left
                   39 right})
 
-(def my-transducer
+(def keycode-transducer
   (comp (map #(.-keyCode %))
         (map #(get command-map %))
-        (filter some?)))
+        (remove nil?)))
 
-(def user-input-chan (chan 1 my-transducer))
+(def user-input-chan (chan 1 keycode-transducer))
 
 (go-loop []
   (let [command (<! user-input-chan)]
