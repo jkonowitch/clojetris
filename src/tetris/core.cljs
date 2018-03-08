@@ -9,14 +9,6 @@
 ;; ------------------------
 ;; Logic
 
-; (defn translate-to-origin [offset segment]
-;   (map - segment offset))
-;
-; (defn rotate-90-degrees [piece]
-;   (let [center (first piece)
-;         translated (map (partial translate-to-origin center) (rest piece))]
-;     (cons center translated)))
-
 (defn in-bounds? [[y x]]
   (and (<= 0 x 9) (<= 0 y 19)))
 
@@ -35,19 +27,45 @@
       (piece->board next-piece clean-board))))
 
 (defn next-state [transform {board :board piece :piece :as state}]
-  (let [next-piece (update piece :segments #(map transform %))]
+  (let [next-piece (update piece :segments transform)]
     (if-let [next-board (maybe-next-board state next-piece)]
       {:board next-board :piece next-piece}
       state)))
 
-(def initialize (partial next-state identity))
+(defn translate-to-origin [offset segment]
+  (map - segment offset))
 
-(def down (partial next-state #(update % 0 inc)))
+(defn translate-from-origin [offset segment]
+  (map + segment offset))
 
-(def right (partial next-state #(update % 1 inc)))
+(defn rotate-90 [[y x]]
+  (let [Θ (/ js/Math.PI 2)
+        cosΘ (int (.cos js/Math Θ))
+        sinΘ (int (.sin js/Math Θ))
+        x' (- (* x cosΘ) (* y sinΘ))
+        y' (+ (* y cosΘ) (* x sinΘ))]
+    [y' x']))
 
-(def left (partial next-state #(update % 1 dec)))
+(defn do-rotation [segments]
+  (let [center (first segments)
+        to-origin (map (partial translate-to-origin center) (rest segments))
+        rotated (map rotate-90 to-origin)
+        from-origin (map (partial translate-from-origin center) rotated)]
+    (into [center] (map vec from-origin))))
 
+(def translate #(partial next-state (partial map %)))
+
+(def initialize (translate identity))
+
+(def down (translate #(update % 0 inc)))
+
+(def right (translate #(update % 1 inc)))
+
+(def left (translate #(update % 1 dec)))
+
+(def up (partial next-state (partial do-rotation)))
+
+; find lines to be cleared
 ; (keep-indexed #(if (not-any? nil? %2) %1) board)
 
 ;; -------------------------
@@ -67,7 +85,7 @@
 ;; ------------------------
 ;; Game State
 
-(def pieces [{:name "I", :segments [[0 0] [0 1] [0 2] [0 3]]}
+(def pieces [{:name "I", :segments [[0 1] [0 0] [0 2] [0 3]]}
              {:name "O", :segments [[0 0] [0 1] [1 0] [1 1]]}
              {:name "T", :segments [[0 1] [0 0] [0 2] [1 1]]}
              {:name "S", :segments [[0 1] [0 2] [1 0] [1 1]]}
@@ -96,7 +114,7 @@
 ;; Game Loop
 
 (go-loop []
-   (<! (timeout 250))
+   (<! (timeout 500))
    (let [next-state (down @game-state)]
      (if (= next-state @game-state)
        (swap! game-state assoc :piece (rand-nth pieces))
@@ -106,7 +124,7 @@
 ;; ------------------------
 ;; User Input Loop
 
-(def command-map {;38 "UP"
+(def command-map {38 up
                   40 down
                   37 left
                   39 right})
