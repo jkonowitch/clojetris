@@ -38,11 +38,12 @@
 (defn translate-from-origin [offset segment]
   (map + segment offset))
 
+(def Θ (/ js/Math.PI 2))
+(def cosΘ (int (.cos js/Math Θ)))
+(def sinΘ (int (.sin js/Math Θ)))
+
 (defn rotate-90 [[y x]]
-  (let [Θ (/ js/Math.PI 2)
-        cosΘ (int (.cos js/Math Θ))
-        sinΘ (int (.sin js/Math Θ))
-        x' (- (* x cosΘ) (* y sinΘ))
+  (let [x' (- (* x cosΘ) (* y sinΘ))
         y' (+ (* y cosΘ) (* x sinΘ))]
     [y' x']))
 
@@ -51,7 +52,7 @@
         to-origin (map (partial translate-to-origin center) (rest segments))
         rotated (map rotate-90 to-origin)
         from-origin (map (partial translate-from-origin center) rotated)]
-    (into [center] (map vec from-origin))))
+    (into [center] (map vec) from-origin)))
 
 (def translate #(partial next-state (partial map %)))
 
@@ -63,7 +64,15 @@
 
 (def left (translate #(update % 1 dec)))
 
-(def up (partial next-state (partial do-rotation)))
+(defmulti up #(get-in % [:piece :name]))
+
+(defmethod up "O"
+  [state]
+  (next-state identity state))
+
+(defmethod up :default
+  [state]
+  (next-state do-rotation state))
 
 ; find lines to be cleared
 ; (keep-indexed #(if (not-any? nil? %2) %1) board)
