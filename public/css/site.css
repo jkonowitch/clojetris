@@ -44,7 +44,7 @@ a:hover {
 .cell {
   height: 20px;
   width: 20px;
-  border: 1px solid grey;
+  border: .5px dashed #dcdcdc;
 }
 
 .cell.I { background-color: aqua; }
