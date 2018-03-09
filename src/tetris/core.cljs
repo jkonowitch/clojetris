@@ -5,34 +5,38 @@
       [reagent.core :as r]
       [cljs.core.async :refer [<! timeout chan put!]]))
 
-
 ;; ------------------------
 ;; Logic
 
 (defn in-bounds? [[y x]]
   (and (<= 0 x 9) (<= 0 y 19)))
 
-(defn no-conflicts? [board proposed-segments]
+(def vec-repeat (comp vec repeat))
+
+(defn no-conflicts?
+  [board proposed-segments]
   (every? nil? (map #(get-in board %) proposed-segments)))
 
-(defn piece->board [{val :name keys :segments} board]
+(defn piece->board
+  [{{val :name keys :segments} :piece board :board}]
   (reduce #(assoc-in %1 %2 val) board keys))
 
+(def piece<-board
+  (comp piece->board #(assoc-in % [:piece :name] nil)))
+
 (defn maybe-next-board
-  [{prev-board :board prev-piece :piece}
-   {next-segments :segments :as next-piece}]
-  (let [nil-piece (assoc prev-piece :name nil)
-        clean-board (piece->board nil-piece prev-board)]
-    (when (and (every? in-bounds? next-segments)
-               (no-conflicts? clean-board next-segments))
-      (piece->board next-piece clean-board))))
+  [current-state next-piece]
+  (let [clean-board (piece<-board current-state)]
+    (when (no-conflicts? clean-board (:segments next-piece))
+      (piece->board {:piece next-piece :board clean-board}))))
 
 (defn next-state
-  "Takes a segment transformation and the current state. Returns the next state.
-   Simply returns the current state if the segment trasnformation is illegal."
-  [transform {board :board piece :piece :as state}]
-  (let [next-piece (update piece :segments transform)]
-    (if-let [next-board (maybe-next-board state next-piece)]
+  "Takes a segment transformation fn and the current state. Returns the next state.
+   Simply returns the current state if the segment transformation is illegal."
+  [f {piece :piece :as state}]
+  (let [next-piece (update piece :segments f)]
+    (if-let [next-board (and (every? in-bounds? (:segments next-piece))
+                             (maybe-next-board state next-piece))]
       {:board next-board :piece next-piece}
       state)))
 
@@ -85,7 +89,7 @@
   (keep-indexed #(if (not-any? nil? %2) %1) board))
 
 (defn clear-lines [[i & idxs] board]
-  (let [blank-row (vec (repeat 10 nil))
+  (let [blank-row (vec-repeat 10 nil)
         board-without-line (concat (subvec board 0 i)
                                    (subvec board (inc i)))
         new-board (into [blank-row] board-without-line)]
@@ -117,10 +121,8 @@
              {:name "L", :segments [[1 1] [0 2] [1 0] [1 2]]}])
 
 (def starting-piece (rand-nth pieces))
-(def blank-board (->> (repeat 10 nil)
-                      (vec)
-                      (repeat 20)
-                      (vec)))
+(def blank-board (->> (vec-repeat 10 nil)
+                      (vec-repeat 20)))
 
 (def game-state (r/atom (initialize {:board blank-board :piece starting-piece})))
 
@@ -136,14 +138,19 @@
 ;; ------------------------
 ;; Game Loop
 
+(defn next-piece! []
+  (swap! game-state assoc :piece (rand-nth pieces)))
+
+(defn clear-lines! []
+  (when-let [lines (-> (lines-to-clear (:board @game-state))
+                       (not-empty))]
+    (swap! game-state update :board #(clear-lines lines %))))
+
 (go-loop []
    (<! (timeout 500))
    (let [next-state (down @game-state)]
      (if (= next-state @game-state)
-       (do
-         (swap! game-state assoc :piece (rand-nth pieces))
-         (when-let [lines (not-empty (lines-to-clear (:board @game-state)))]
-           (swap! game-state update-in [:board] (partial clear-lines lines))))
+       (do (next-piece!) (clear-lines!))
        (reset! game-state next-state)))
    (recur))
 
@@ -155,12 +162,12 @@
                   37 left
                   39 right})
 
-(def keycode-transducer
+(def event->fn
   (comp (map #(.-keyCode %))
         (map #(get command-map %))
         (remove nil?)))
 
-(def user-input-chan (chan 1 keycode-transducer))
+(def user-input-chan (chan 1 event->fn))
 
 (go-loop []
   (let [command (<! user-input-chan)]
