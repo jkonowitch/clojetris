@@ -1,12 +1,14 @@
 (ns tetris.core
-    (:use-macros [cljs.core.async.macros :only [go-loop]])
+    (:use-macros [cljs.core.async.macros :only [go-loop go]])
     (:require
       [clojure.browser.event :as events]
       [reagent.core :as r]
-      [cljs.core.async :refer [<! timeout chan put!]]))
+      [cljs.core.async :refer [alts! <! timeout chan put! mult tap sliding-buffer]]))
 
 ;; ------------------------
 ;; Logic
+
+(enable-console-print!)
 
 (defn in-bounds? [[y x]]
   (and (<= 0 x 9) (<= 0 y 19)))
@@ -106,8 +108,9 @@
   ^{:key n} [:div.row (map-indexed (partial cell-component n) row)])
 
 (defn board-component [game-state]
-  (let [board (:board @game-state)]
-    [:div.board (map-indexed row-component board)]))
+  (let [board (:board @game-state)
+        elt (if (:paused @game-state) :div.board.paused :div.board)]
+    [elt (map-indexed row-component board)]))
 
 ;; ------------------------
 ;; Game State
@@ -120,23 +123,15 @@
              {:name "J", :segments [[1 1] [0 0] [1 0] [1 2]]}
              {:name "L", :segments [[1 1] [0 2] [1 0] [1 2]]}])
 
-(def starting-piece (rand-nth pieces))
 (def blank-board (->> (vec-repeat 10 nil)
                       (vec-repeat 20)))
 
-(def game-state (r/atom (initialize {:board blank-board :piece starting-piece})))
+(def game-state (r/atom (initialize {:board blank-board
+                                     :piece (rand-nth pieces)
+                                     :paused false})))
 
 ;; ------------------------
-;; Initialize app
-
-(defn mount-root []
-  (r/render [board-component game-state] (.getElementById js/document "app")))
-
-(defn init! []
-  (mount-root))
-
-;; ------------------------
-;; Game Loop
+;; Stateful Operations
 
 (defn next-piece! []
   (swap! game-state assoc :piece (rand-nth pieces)))
@@ -146,32 +141,64 @@
                        (not-empty))]
     (swap! game-state update :board #(clear-lines lines %))))
 
-(go-loop []
-   (<! (timeout 500))
-   (let [next-state (down @game-state)]
-     (if (= next-state @game-state)
-       (do (next-piece!) (clear-lines!))
-       (reset! game-state next-state)))
-   (recur))
+;; ------------------------
+;; Game/Input Loops
+
+(def command-map {"ArrowUp" up
+                  "ArrowDown" down
+                  "ArrowLeft" left
+                  "ArrowRight" right})
+
+(defn piece-commands-loop [[_ pause-ch :as chs]]
+  (go-loop []
+    (let [[key ch] (alts! chs)
+          command (get command-map key)]
+      (when-not (= pause-ch ch)
+        (swap! game-state merge (command @game-state))
+        (recur)))))
+
+(defn game-loop [pause-ch]
+  (go-loop []
+     (let [[_ ch] (alts! [pause-ch (timeout 500)])
+           next-state (down @game-state)]
+       (when-not (= pause-ch ch)
+         (if (= next-state @game-state)
+           (do (next-piece!) (clear-lines!))
+           (swap! game-state merge next-state))
+         (recur)))))
 
 ;; ------------------------
-;; User Input Loop
+;; Initialize app
 
-(def command-map {38 up
-                  40 down
-                  37 left
-                  39 right})
+(defn mount-root []
+ (r/render [board-component game-state] (.getElementById js/document "app")))
 
-(def event->fn
-  (comp (map #(.-keyCode %))
-        (map #(get command-map %))
-        (remove nil?)))
+(defn init! []
+ (mount-root))
 
-(def user-input-chan (chan 1 event->fn))
+;; User Input Channels
 
-(go-loop []
-  (let [command (<! user-input-chan)]
-    (reset! game-state (command @game-state)))
-  (recur))
+(def user-input-src (chan 1 (map #(.-key %))))
+(events/listen (.querySelector js/document "body") "keydown" #(put! user-input-src %))
 
-(events/listen (.querySelector js/document "body") "keydown" #(put! user-input-chan %))
+(def user-m (partial tap (mult user-input-src)))
+(def piece-ch (user-m (chan (sliding-buffer 1) (filter (set (keys command-map))))))
+(def interrupt-ch (user-m (chan 1 (filter #{"p"}))))
+
+(let [interrupt-m (partial tap (mult interrupt-ch))
+      unpause-ch (interrupt-m (chan 1 (keep-indexed #(if (odd? %1) %2))))
+      pause-xf (keep-indexed #(if (even? %1) %2))
+      pause-chs (repeatedly 3 #(interrupt-m (chan 1 pause-xf)))]
+
+  (go-loop []
+    (<! (nth pause-chs 0))
+    (swap! game-state assoc :paused true)
+    (recur))
+
+  (go-loop []
+    (println "(Re)starting...")
+    (game-loop (nth pause-chs 1))
+    (piece-commands-loop [piece-ch (nth pause-chs 2)])
+    (<! unpause-ch)
+    (swap! game-state assoc :paused false)
+    (recur)))

@@ -33,12 +33,29 @@ a:hover {
   text-decoration: underline;
 }
 
-#app { text-align: center; }
+#app {
+  text-align: center;
+  position: relative;
+}
 
 .board {
   display: inline-block;
   margin: 0 auto;
   border: 1px solid #d9d9d9;
+}
+
+.board.paused:after {
+  content: 'PAUSED';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ffffffd1;
+  font-size: 2em;
 }
 
 .row {
