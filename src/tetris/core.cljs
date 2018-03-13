@@ -95,27 +95,32 @@
         new-board (into [blank-row] board-without-line)]
     (if (empty? idxs) new-board (recur idxs new-board))))
 
+(defn on-deck-board [state]
+  (let [board (->> (vec-repeat 4 nil)
+                   (vec-repeat 3))]
+    (piece->board (assoc state :board board :piece (first (:upcoming state))))))
+
 ;; -------------------------
 ;; Views
 
 (defn cell-component [n i cell]
-  (let [element (str "div.cell" (when cell (str "." cell)))]
+  (let [element (str "div.cell" (when cell (str ".piece." cell)))]
     ^{:key (str n i)} [(keyword element)]))
 
 (defn row-component [n row]
   ^{:key n} [:div.row (map-indexed (partial cell-component n) row)])
 
-(def on-deck (->> (vec-repeat 4 nil)
-                  (vec-repeat 4)))
-
 (defn board-component [game-state]
   (let [board (:board @game-state)
-        on-deck-board (piece->board {:piece (first (:upcoming @game-state)), :board on-deck})
         elt (if (:paused @game-state) :div.board.paused :div.board)]
     [:div.game
-     [elt (map-indexed row-component board)]
-     [:div.side
-      [:div.on-deck (map-indexed row-component on-deck-board)]]])) ;(map-indexed row-component)]]]))
+      [elt (map-indexed row-component board)]
+      [:div.side
+        [:div.on-deck (map-indexed row-component (on-deck-board @game-state))]
+        [:div.score [:h3 [:span.title "Score"] [:br] 100]]
+        [:div.instructions
+          [:h4.title "Instructions"]
+          [:p "Use the arrow keys" [:br] [:b "[P]"] "ause"]]]]))
 
 ;; ------------------------
 ;; Game State
