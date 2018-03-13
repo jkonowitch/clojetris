@@ -11,7 +11,7 @@
 (enable-console-print!)
 
 (defn in-bounds? [[y x]]
-  (and (<= 0 x 9) (<= 0 y 19)))
+  (and (<= 0 x 9) (<= 0 y 21)))
 
 (def vec-repeat (comp vec repeat))
 
@@ -95,10 +95,15 @@
         new-board (into [blank-row] board-without-line)]
     (if (empty? idxs) new-board (recur idxs new-board))))
 
+(def dec-3 #(- % 3))
+
 (defn on-deck-board [state]
   (let [board (->> (vec-repeat 4 nil)
-                   (vec-repeat 3))]
-    (piece->board (assoc state :board board :piece (first (:upcoming state))))))
+                   (vec-repeat 3))
+        piece (first (:upcoming state))
+        translated-to-origin (update piece :segments (partial map #(update % 1 dec-3)))]
+    (println translated-to-origin)
+    (piece->board (assoc state :board board :piece translated-to-origin))))
 
 ;; -------------------------
 ;; Views
@@ -125,16 +130,16 @@
 ;; ------------------------
 ;; Game State
 
-(def tetronimos [{:name "I", :segments [[0 1] [0 0] [0 2] [0 3]]}
-                 {:name "O", :segments [[0 0] [0 1] [1 0] [1 1]]}
-                 {:name "T", :segments [[0 1] [0 0] [0 2] [1 1]]}
-                 {:name "S", :segments [[0 1] [0 2] [1 0] [1 1]]}
-                 {:name "Z", :segments [[0 1] [0 0] [1 1] [1 2]]}
-                 {:name "J", :segments [[1 1] [0 0] [1 0] [1 2]]}
-                 {:name "L", :segments [[1 1] [0 2] [1 0] [1 2]]}])
+(def tetronimos [{:name "I", :segments [[0 4] [0 3] [0 5] [0 6]]}
+                 {:name "O", :segments [[0 3] [0 4] [1 3] [1 4]]}
+                 {:name "T", :segments [[0 4] [0 3] [0 5] [1 4]]}
+                 {:name "S", :segments [[0 4] [0 5] [1 3] [1 4]]}
+                 {:name "Z", :segments [[0 4] [0 3] [1 4] [1 5]]}
+                 {:name "J", :segments [[1 4] [0 3] [1 3] [1 5]]}
+                 {:name "L", :segments [[1 4] [0 5] [1 3] [1 5]]}])
 
 (def blank-board (->> (vec-repeat 10 nil)
-                      (vec-repeat 20)))
+                      (vec-repeat 22)))
 
 (def starting-deck (shuffle tetronimos))
 

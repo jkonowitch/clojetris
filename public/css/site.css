@@ -84,6 +84,8 @@ a:hover {
   justify-content: center;
 }
 
+.board .row:nth-child(-n+2) { display: none; }
+
 .cell {
   height: 28px;
   width: 28px;
