@@ -102,9 +102,18 @@
                    (vec-repeat 3))
         piece (first (:upcoming state))
         translated-to-origin (update piece :segments (partial map #(update % 1 dec-3)))]
-    (println translated-to-origin)
     (piece->board (assoc state :board board :piece translated-to-origin))))
 
+(def score-map [0 100 300 500 800])
+
+(defn score-value [n-of-lines level]
+  (* (nth score-map n-of-lines) level))
+
+(defn level [total-lines]
+  (->
+    (/ total-lines 10)
+    (int)
+    (inc)))
 ;; -------------------------
 ;; Views
 
@@ -115,17 +124,21 @@
 (defn row-component [n row]
   ^{:key n} [:div.row (map-indexed (partial cell-component n) row)])
 
-(defn board-component [game-state]
-  (let [board (:board @game-state)
-        elt (if (:paused @game-state) :div.board.paused :div.board)]
+(defn side-component [state]
+  [:div.side
+    [:div.on-deck (map-indexed row-component (on-deck-board state))]
+    [:div.score [:h3 [:span.title "Score"] [:br] (:score state)]]
+    [:div.level [:h3 [:span.title "Level"] [:br] (level (:total-lines state))]]
+    [:div.instructions
+      [:h4.title "Instructions"]
+      [:p "Use the arrow keys" [:br] [:b "[P]"] "ause"]]])
+
+(defn board-component [state]
+  (let [board (:board @state)
+        elt (if (:paused @state) :div.board.paused :div.board)]
     [:div.game
       [elt (map-indexed row-component board)]
-      [:div.side
-        [:div.on-deck (map-indexed row-component (on-deck-board @game-state))]
-        [:div.score [:h3 [:span.title "Score"] [:br] 100]]
-        [:div.instructions
-          [:h4.title "Instructions"]
-          [:p "Use the arrow keys" [:br] [:b "[P]"] "ause"]]]]))
+      (side-component @state)]))
 
 ;; ------------------------
 ;; Game State
@@ -146,8 +159,9 @@
 (def game-state (r/atom {:board blank-board
                          :upcoming (rest starting-deck)
                          :piece (first starting-deck)
-                         :paused false}))
-
+                         :paused false
+                         :total-lines 0
+                         :score 0}))
 ;; ------------------------
 ;; Stateful Operations
 
@@ -160,8 +174,9 @@
 (defn clear-lines! []
   (when-let [lines (-> (lines-to-clear (:board @game-state))
                        (not-empty))]
-    (swap! game-state update :board #(clear-lines lines %))))
-
+    (swap! game-state update :board #(clear-lines lines %))
+    (swap! game-state update :score + (score-value (count lines) (level (:total-lines @game-state))))
+    (swap! game-state update :total-lines + (count lines))))
 ;; ------------------------
 ;; Game/Input Loops
 
@@ -178,9 +193,13 @@
         (swap! game-state merge (command @game-state))
         (recur)))))
 
+(defn tick-length [] (->> (level (:total-lines @game-state))
+                         (* 25)
+                         (- 525)))
+
 (defn game-loop [pause-ch]
   (go-loop []
-     (let [[_ ch] (alts! [pause-ch (timeout 500)])
+     (let [[_ ch] (alts! [pause-ch (timeout (tick-length))])
            next-state (down @game-state)]
        (when-not (= pause-ch ch)
          (if (= next-state @game-state)
