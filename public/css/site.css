@@ -38,10 +38,16 @@ a:hover {
   position: relative;
 }
 
+.game {
+  display: flex;
+}
+
+.side {
+  flex: 1;
+}
+
 .board {
-  display: inline-block;
-  margin: 0 auto;
-  border: 1px solid #d9d9d9;
+  flex: 2;
 }
 
 .board.paused:after {

@@ -69,8 +69,6 @@
 
 (def translate #(partial next-state (partial map %)))
 
-(def initialize (translate identity))
-
 (def down (translate #(update % 0 inc)))
 
 (def right (translate #(update % 1 inc)))
@@ -107,34 +105,47 @@
 (defn row-component [n row]
   ^{:key n} [:div.row (map-indexed (partial cell-component n) row)])
 
+(def on-deck (->> (vec-repeat 4 nil)
+                  (vec-repeat 4)))
+
 (defn board-component [game-state]
   (let [board (:board @game-state)
+        on-deck-board (piece->board {:piece (first (:upcoming @game-state)), :board on-deck})
         elt (if (:paused @game-state) :div.board.paused :div.board)]
-    [elt (map-indexed row-component board)]))
+    [:div.game
+     [elt (map-indexed row-component board)]
+     [:div.side
+      [:div.on-deck (map-indexed row-component on-deck-board)]]])) ;(map-indexed row-component)]]]))
 
 ;; ------------------------
 ;; Game State
 
-(def pieces [{:name "I", :segments [[0 1] [0 0] [0 2] [0 3]]}
-             {:name "O", :segments [[0 0] [0 1] [1 0] [1 1]]}
-             {:name "T", :segments [[0 1] [0 0] [0 2] [1 1]]}
-             {:name "S", :segments [[0 1] [0 2] [1 0] [1 1]]}
-             {:name "Z", :segments [[0 1] [0 0] [1 1] [1 2]]}
-             {:name "J", :segments [[1 1] [0 0] [1 0] [1 2]]}
-             {:name "L", :segments [[1 1] [0 2] [1 0] [1 2]]}])
+(def tetronimos [{:name "I", :segments [[0 1] [0 0] [0 2] [0 3]]}
+                 {:name "O", :segments [[0 0] [0 1] [1 0] [1 1]]}
+                 {:name "T", :segments [[0 1] [0 0] [0 2] [1 1]]}
+                 {:name "S", :segments [[0 1] [0 2] [1 0] [1 1]]}
+                 {:name "Z", :segments [[0 1] [0 0] [1 1] [1 2]]}
+                 {:name "J", :segments [[1 1] [0 0] [1 0] [1 2]]}
+                 {:name "L", :segments [[1 1] [0 2] [1 0] [1 2]]}])
 
 (def blank-board (->> (vec-repeat 10 nil)
                       (vec-repeat 20)))
 
-(def game-state (r/atom (initialize {:board blank-board
-                                     :piece (rand-nth pieces)
-                                     :paused false})))
+(def starting-deck (shuffle tetronimos))
+
+(def game-state (r/atom {:board blank-board
+                         :upcoming (rest starting-deck)
+                         :piece (first starting-deck)
+                         :paused false}))
 
 ;; ------------------------
 ;; Stateful Operations
 
 (defn next-piece! []
-  (swap! game-state assoc :piece (rand-nth pieces)))
+  (let [nxt (first (:upcoming @game-state))
+        upcoming (or (not-empty (drop 1 (:upcoming @game-state)))
+                     (shuffle tetronimos))]
+    (swap! game-state assoc :upcoming upcoming :piece nxt)))
 
 (defn clear-lines! []
   (when-let [lines (-> (lines-to-clear (:board @game-state))
@@ -191,14 +202,14 @@
       pause-chs (repeatedly 3 #(interrupt-m (chan 1 pause-xf)))]
 
   (go-loop []
-    (<! (nth pause-chs 0))
+    (<! (first pause-chs))
     (swap! game-state assoc :paused true)
     (recur))
 
   (go-loop []
     (println "(Re)starting...")
-    (game-loop (nth pause-chs 1))
-    (piece-commands-loop [piece-ch (nth pause-chs 2)])
+    (game-loop (second pause-chs))
+    (piece-commands-loop [piece-ch (last pause-chs)])
     (<! unpause-ch)
     (swap! game-state assoc :paused false)
     (recur)))
