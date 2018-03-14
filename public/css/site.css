@@ -62,8 +62,7 @@ a:hover {
   flex: 2;
 }
 
-.board.paused:after {
-  content: 'PAUSED';
+.board.overlay:after {
   position: absolute;
   top: 0;
   left: 0;
@@ -74,6 +73,14 @@ a:hover {
   align-items: center;
   background-color: #ffffffd1;
   font-size: 2em;
+}
+
+.board.paused:after {
+  content: 'PAUSED';
+}
+
+.board.game-over:after {
+  content: 'GAME OVER';
 }
 
 .row {

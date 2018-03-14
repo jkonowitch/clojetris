@@ -136,7 +136,10 @@
 
 (defn board-component [state]
   (let [board (:board @state)
-        elt (if (:paused @state) :div.board.paused :div.board)]
+        elt (cond
+              (:game-over @state) :div.board.overlay.game-over
+              (:paused @state) :div.board.overlay.paused
+              :else :div.board)]
     [:div.game
       [elt (map-indexed row-component board)]
       (side-component @state)]))
@@ -161,16 +164,20 @@
                          :upcoming (rest starting-deck)
                          :piece (first starting-deck)
                          :paused false
+                         :game-over false
                          :total-lines 0
                          :score 0}))
 ;; ------------------------
 ;; Stateful Operations
 
+(def game-over (chan))
+
 (defn next-piece! []
   (let [nxt (first (:upcoming @game-state))
         upcoming (or (not-empty (drop 1 (:upcoming @game-state)))
                      (shuffle tetronimos))]
-    (swap! game-state assoc :upcoming upcoming :piece nxt)))
+    (swap! game-state assoc :upcoming upcoming :piece nxt)
+    (when-not (down @game-state) (go (put! game-over "")))))
 
 (defn clear-lines! []
   (when-let [lines (-> (lines-to-clear (:board @game-state))
@@ -186,11 +193,11 @@
                   "ArrowLeft" left
                   "ArrowRight" right})
 
-(defn piece-commands-loop [[_ pause-ch :as chs]]
+(defn piece-commands-loop [[piece-ch :as chs]]
   (go-loop []
     (let [[key ch] (alts! chs)
           command (get command-map key)]
-      (when-not (= pause-ch ch)
+      (when (= piece-ch ch)
         (swap! game-state merge (command @game-state))
         (recur)))))
 
@@ -201,12 +208,12 @@
                           (* 25)
                           (- 525)))
 
-(defn game-loop [pause-ch]
+(defn game-loop [chs]
   (go-loop []
-     (let [[_ ch] (alts! [pause-ch (timeout (tick-length))])
-           next-state (down @game-state)]
-       (when-not (= pause-ch ch)
-         (if next-state
+     (let [t (timeout (tick-length))
+           [_ ch] (alts! (conj chs t))]
+       (when (= t ch)
+         (if-let [next-state (down @game-state)]
            (swap! game-state merge next-state)
            (do (next-piece!) (clear-lines!)))
          (recur)))))
@@ -232,7 +239,14 @@
 (let [interrupt-m (partial tap (mult interrupt-ch))
       unpause-ch (interrupt-m (chan 1 (keep-indexed #(if (odd? %1) %2))))
       pause-xf (keep-indexed #(if (even? %1) %2))
-      pause-chs (repeatedly 3 #(interrupt-m (chan 1 pause-xf)))]
+      pause-chs (repeatedly 3 #(interrupt-m (chan 1 pause-xf)))
+      game-over-m (partial tap (mult game-over))
+      game-over-chs (repeatedly 3 #(game-over-m (chan)))]
+
+  (go-loop []
+    (<! (first game-over-chs))
+    (swap! game-state assoc :game-over true)
+    (recur))
 
   (go-loop []
     (<! (first pause-chs))
@@ -241,8 +255,8 @@
 
   (go-loop []
     (println "(Re)starting...")
-    (game-loop (second pause-chs))
-    (piece-commands-loop [piece-ch (last pause-chs)])
+    (game-loop [(second game-over-chs)(second pause-chs)])
+    (piece-commands-loop [piece-ch (last game-over-chs) (last pause-chs)])
     (<! unpause-ch)
     (swap! game-state assoc :paused false)
     (recur)))
