@@ -34,13 +34,12 @@
 
 (defn next-state
   "Takes a segment transformation fn and the current state. Returns the next state.
-   Simply returns the current state if the segment transformation is illegal."
+   Returns nil if the segment transformation is illegal."
   [f {piece :piece :as state}]
   (let [next-piece (update piece :segments f)]
-    (if-let [next-board (and (every? in-bounds? (:segments next-piece))
-                             (maybe-next-board state next-piece))]
-      {:board next-board :piece next-piece}
-      state)))
+    (when-let [next-board (and (every? in-bounds? (:segments next-piece))
+                               (maybe-next-board state next-piece))]
+      {:board next-board :piece next-piece})))
 
 (def Θ (/ js/Math.PI 2))
 
@@ -207,9 +206,9 @@
      (let [[_ ch] (alts! [pause-ch (timeout (tick-length))])
            next-state (down @game-state)]
        (when-not (= pause-ch ch)
-         (if (= next-state @game-state)
-           (do (next-piece!) (clear-lines!))
-           (swap! game-state merge next-state))
+         (if next-state
+           (swap! game-state merge next-state)
+           (do (next-piece!) (clear-lines!)))
          (recur)))))
 
 ;; ------------------------
