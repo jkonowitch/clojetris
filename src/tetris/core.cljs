@@ -67,13 +67,17 @@
         rotate (rotate-about-point center)]
     (into [center] (rotate (rest segments)))))
 
-(def translate #(partial next-state (partial map %)))
+(defn update-x [f] #(update % 1 f))
 
-(def down (translate #(update % 0 inc)))
+(defn update-y [f] #(update % 0 f))
 
-(def right (translate #(update % 1 inc)))
+(defn translation [f] (fn [state] (next-state (partial map f) state)))
 
-(def left (translate #(update % 1 dec)))
+(def down (translation (update-y inc)))
+
+(def right (translation (update-x inc)))
+
+(def left (translation (update-x dec)))
 
 (defmulti up #(get-in % [:piece :name]))
 
@@ -97,12 +101,11 @@
 
 (def dec-3 #(- % 3))
 
-(defn on-deck-board [state]
+(defn on-deck-board [piece]
   (let [board (->> (vec-repeat 4 nil)
                    (vec-repeat 3))
-        piece (first (:upcoming state))
-        translated-to-origin (update piece :segments (partial map #(update % 1 dec-3)))]
-    (piece->board (assoc state :board board :piece translated-to-origin))))
+        translate-left (update piece :segments (partial map (update-x dec-3)))]
+    (piece->board {:board board :piece translate-left})))
 
 (def score-map [0 100 300 500 800])
 
@@ -110,10 +113,9 @@
   (* (nth score-map n-of-lines) level))
 
 (defn level [total-lines]
-  (->
-    (/ total-lines 10)
-    (int)
-    (inc)))
+  (-> (/ total-lines 10)
+      (int)
+      (inc)))
 ;; -------------------------
 ;; Views
 
@@ -126,7 +128,7 @@
 
 (defn side-component [state]
   [:div.side
-    [:div.on-deck (map-indexed row-component (on-deck-board state))]
+    [:div.on-deck (map-indexed row-component (on-deck-board (first (:upcoming state))))]
     [:div.score [:h3 [:span.title "Score"] [:br] (:score state)]]
     [:div.level [:h3 [:span.title "Level"] [:br] (level (:total-lines state))]]
     [:div.instructions
