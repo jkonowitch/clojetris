@@ -203,16 +203,19 @@
         (swap! game-state merge (command @game-state))
         (recur)))))
 
-; TODO - equation for a concave timeout curve
-; timeout-ms = -1800 + (125000 / (1 + (level / (9.132303 * 10^-28)) ^ 0.06378964))
-
-(defn tick-length [] (->> (level (:total-lines @game-state))
-                          (* 25)
-                          (- 525)))
+(defn tick-length
+  "Symmetrical sigmoidal curve. Generated at https://mycurvefit.com/."
+  [x]
+  (let [c (* 9.132303 (.pow js/Math 10 -28))
+        b 0.06378964
+        a 122500
+        d -1800]
+    (+ d (/ (- a d) (+ 1 (.pow js/Math (/ x c) b))))))
 
 (defn game-loop [chs]
   (go-loop []
-     (let [t (timeout (tick-length))
+     (let [l (level (:total-lines @game-state))
+           t (timeout (tick-length l))
            [_ ch] (alts! (conj chs t))]
        (when (= t ch)
          (if-let [next-state (down @game-state)]
@@ -261,5 +264,4 @@
 (defn mount-root []
  (r/render [board-component game-state] (.getElementById js/document "app")))
 
-(defn init! []
- (mount-root)))
+(defn init! [] (mount-root))
