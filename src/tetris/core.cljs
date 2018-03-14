@@ -195,9 +195,12 @@
         (swap! game-state merge (command @game-state))
         (recur)))))
 
+; TODO - equation for a concave timeout curve
+; timeout-ms = -1800 + (125000 / (1 + (level / (9.132303 * 10^-28)) ^ 0.06378964))
+
 (defn tick-length [] (->> (level (:total-lines @game-state))
-                         (* 25)
-                         (- 525)))
+                          (* 25)
+                          (- 525)))
 
 (defn game-loop [pause-ch]
   (go-loop []
