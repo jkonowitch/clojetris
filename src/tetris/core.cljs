@@ -236,24 +236,26 @@
 (let [interrupt-m (partial tap (mult interrupt-ch))
       unpause-ch (interrupt-m (chan 1 (keep-indexed #(if (odd? %1) %2))))
       pause-xf (keep-indexed #(if (even? %1) %2))
-      pause-chs (repeatedly 3 #(interrupt-m (chan 1 pause-xf)))
+      pause-ch (memoize (fn [_] (interrupt-m (chan 1 pause-xf))))
       game-over-m (partial tap (mult game-over))
-      game-over-chs (repeatedly 3 #(game-over-m (chan)))]
+      game-over-ch (memoize (fn [_] (game-over-m (chan))))]
 
   (go-loop []
-    (<! (first game-over-chs))
+    (<! (game-over-ch :game-over-loop))
     (swap! game-state assoc :game-over true)
     (recur))
 
   (go-loop []
-    (<! (first pause-chs))
+    (<! (pause-ch :pause-loop))
     (swap! game-state assoc :paused true)
     (recur))
 
   (go-loop []
     (println "(Re)starting...")
-    (game-loop [(second game-over-chs)(second pause-chs)])
-    (piece-commands-loop [piece-ch (last game-over-chs) (last pause-chs)])
+    (game-loop [(game-over-ch :game-loop) (pause-ch :game-loop)])
+    (piece-commands-loop [piece-ch
+                          (game-over-ch :piece-commands-loop)
+                          (pause-ch :piece-commands-loop)])
     (<! unpause-ch)
     (swap! game-state assoc :paused false)
     (recur)))
