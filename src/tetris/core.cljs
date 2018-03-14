@@ -167,6 +167,7 @@
                          :game-over false
                          :total-lines 0
                          :score 0}))
+
 ;; ------------------------
 ;; Stateful Operations
 
@@ -185,6 +186,7 @@
     (swap! game-state update :board #(clear-lines lines %))
     (swap! game-state update :score + (score-value (count lines) (level (:total-lines @game-state))))
     (swap! game-state update :total-lines + (count lines))))
+
 ;; ------------------------
 ;; Game/Input Loops
 
@@ -219,14 +221,6 @@
          (recur)))))
 
 ;; ------------------------
-;; Initialize app
-
-(defn mount-root []
- (r/render [board-component game-state] (.getElementById js/document "app")))
-
-(defn init! []
- (mount-root))
-
 ;; User Input Channels
 
 (def user-input-src (chan 1 (map #(.-key %))))
@@ -260,3 +254,12 @@
     (<! unpause-ch)
     (swap! game-state assoc :paused false)
     (recur)))
+
+;; ------------------------
+;; Initialize app
+
+(defn mount-root []
+ (r/render [board-component game-state] (.getElementById js/document "app")))
+
+(defn init! []
+ (mount-root)))
