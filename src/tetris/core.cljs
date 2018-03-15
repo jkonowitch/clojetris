@@ -204,7 +204,7 @@
         (recur)))))
 
 (defn tick-length
-  "Symmetrical sigmoidal curve. Generated at https://mycurvefit.com/."
+  "Symmetrical sigmoidal curve. Constants generated at mycurvefit.com"
   [x]
   (let [c (* 9.132303 (.pow js/Math 10 -28))
         b 0.06378964
@@ -227,10 +227,11 @@
 ;; User Input Channels
 
 (def user-input-src (chan 1 (map #(.-key %))))
-(events/listen (.querySelector js/document "body") "keydown" #(put! user-input-src %))
 
 (def user-m (partial tap (mult user-input-src)))
+
 (def piece-ch (user-m (chan (sliding-buffer 1) (filter (set (keys command-map))))))
+
 (def interrupt-ch (user-m (chan 1 (filter #{"p"}))))
 
 (let [interrupt-m (partial tap (mult interrupt-ch))
@@ -267,3 +268,5 @@
  (r/render [board-component game-state] (.getElementById js/document "app")))
 
 (defn init! [] (mount-root))
+
+(events/listen (.querySelector js/document "body") "keydown" #(put! user-input-src %))
