@@ -1,19 +1,7 @@
 
-### Development mode
+# Clojetris!
 
-To start the Figwheel compiler, navigate to the project folder and run the following command in the terminal:
+This is the classic Tetris game implemented in ClojureScript. I have always wanted to learn Clojure, and this project was a fun way to do so!
 
-```
-lein figwheel
-```
-
-Figwheel will automatically push cljs changes to the browser.
-Once Figwheel starts up, you should be able to open the `public/index.html` page in the browser.
-
-
-### Building for production
-
-```
-lein clean
-lein package
-```
+Source: https://github.com/jkonowitch/clojetris/blob/master/src/tetris/core.cljs
+Play it Here: https://jkonowitch.github.io/clojetris/
